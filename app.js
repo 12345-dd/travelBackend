@@ -9,8 +9,12 @@ app.use(cors())
 app.use(express.json())
 
 const userRoutes = require("./routes/userRoutes")
+const tripRoutes = require("./routes/tripRoutes")
+
 
 app.use("/",userRoutes)
+app.use("/trip",tripRoutes)
+
 
 const PORT = process.env.PORT 
 
