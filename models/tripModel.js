@@ -61,7 +61,6 @@ const packingItemSchema = new Schema({
     },
     category:{
         type:String,
-        enum:["Documents","Clothing","Gear","Other"],
         default:"Other"
     },
     isPacked:{

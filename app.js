@@ -13,7 +13,7 @@ const tripRoutes = require("./routes/tripRoutes")
 
 
 app.use("/",userRoutes)
-app.use("/trip",tripRoutes)
+app.use("/",tripRoutes)
 
 
 const PORT = process.env.PORT 
