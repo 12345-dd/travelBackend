@@ -4,6 +4,67 @@ const ai = new GoogleGenAI({
   apiKey: process.env.API_KEY,
 });
 
+const sleep = (ms) =>
+  new Promise((resolve) =>
+    setTimeout(resolve, ms)
+  );
+
+const generateWithRetry = async (
+  prompt,
+  retries = 3
+) => {
+  for (
+    let attempt = 1;
+    attempt <= retries;
+    attempt++
+  ) {
+    try {
+      return await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+    } catch (error) {
+      console.log(
+        `Gemini Attempt ${attempt} Failed`
+      );
+
+      if (
+        error.status === 503 &&
+        attempt < retries
+      ) {
+        await sleep(3000);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+};
+
+const parseGeminiResponse = (
+  response
+) => {
+  const text = response.text.trim();
+
+  const cleanedText = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleanedText);
+  } catch (error) {
+    console.log(
+      "Invalid JSON Returned By Gemini:"
+    );
+    console.log(cleanedText);
+
+    throw new Error(
+      "AI returned invalid JSON"
+    );
+  }
+};
+
 const generateTravelPlan = async ({
   destination,
   durationDays,
@@ -22,8 +83,6 @@ Interests:
 ${interests.join(", ")}
 
 Return ONLY valid JSON.
-
-Required JSON Structure:
 
 {
   "itinerary": [
@@ -64,7 +123,6 @@ Required JSON Structure:
 }
 
 Rules:
-
 1. Create itinerary for all ${durationDays} days.
 2. Suggest 3 hotels:
    - Budget
@@ -76,22 +134,36 @@ Rules:
 6. Return ONLY JSON.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
+    const response =
+      await generateWithRetry(
+        prompt
+      );
 
-    const text = response.text.trim();
-
-    const cleanedText = text
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    return JSON.parse(cleanedText);
+    return parseGeminiResponse(
+      response
+    );
   } catch (error) {
-    console.error("Gemini Generation Error:", error);
-    throw new Error("Failed to generate travel plan");
+    console.error(
+      "Gemini Generation Error:",
+      error
+    );
+
+    if (error.status === 429) {
+      throw new Error(
+        "AI quota exceeded. Please try again later."
+      );
+    }
+
+    if (error.status === 503) {
+      throw new Error(
+        "AI service is currently busy. Please try again in a few minutes."
+      );
+    }
+
+    throw new Error(
+      error.message ||
+        "Failed to generate travel plan"
+    );
   }
 };
 
@@ -119,7 +191,7 @@ ${interests.join(", ")}
 Regenerate only Day ${dayNumber}.
 
 Additional User Request:
-${userPrompt}
+${userPrompt || "Generate alternative activities"}
 
 Return ONLY JSON.
 
@@ -136,26 +208,40 @@ Return ONLY JSON.
 }
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
+    const response =
+      await generateWithRetry(
+        prompt
+      );
 
-    const text = response.text.trim();
-
-    const cleanedText = text
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    return JSON.parse(cleanedText);
+    return parseGeminiResponse(
+      response
+    );
   } catch (error) {
-    console.error("Day Regeneration Error:", error);
-    throw new Error("Failed to regenerate day");
+    console.error(
+      "Day Regeneration Error:",
+      error
+    );
+
+    if (error.status === 429) {
+      throw new Error(
+        "AI quota exceeded. Please try again later."
+      );
+    }
+
+    if (error.status === 503) {
+      throw new Error(
+        "AI service is currently busy. Please try again in a few minutes."
+      );
+    }
+
+    throw new Error(
+      error.message ||
+        "Failed to regenerate day"
+    );
   }
 };
 
 module.exports = {
   generateTravelPlan,
-  regenerateDayPlan
+  regenerateDayPlan,
 };
